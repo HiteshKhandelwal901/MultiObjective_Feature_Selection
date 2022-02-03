@@ -533,7 +533,7 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
         print_solution(pop)
 
         #step10: Repeat until convergence | NUM_OF_ITERATIONS
-        print("END BREKAING")
+        print("----END BREKAING----")
         if it>2:
             break
         it = it+1
