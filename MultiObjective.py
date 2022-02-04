@@ -19,10 +19,10 @@ import math
 from sklearn.model_selection import train_test_split
 
 NUM_EXPERIMENTS = 1
-NUM_SOLUTIONS = 5
-NUM_ITERATIONS = 2
-DIMENSION = 5
-K = 5
+NUM_SOLUTIONS = 50
+NUM_ITERATIONS = 5
+DIMENSION = 9
+K = 10
 data_path = 'Data'
 cache = defaultdict()
 
@@ -99,14 +99,17 @@ class Solution:
 
     
     def get_hamming_loss(self, X,y, metric = False):
+        print("inside hamming loss")
         self.classifier_fit(X,y)
         y_pred = self.classifier_predict(X)
         loss = hamming_loss(y_pred, y)
         return loss
 
     def classifier_fit(self, X,y):
-        #print("inside classifier fit")
-        self.clf.fit(np.array(X), np.array(y))
+        print("inside classifier fit")
+        x = np.array(X)
+        y = np.array(y)
+        self.clf.fit(x,y )
 
 
     def classifier_predict(self,X):
@@ -118,10 +121,12 @@ class Solution:
         size = X.shape[1]
         #print("pos = ", self.pos)
         self.active_features = self.feature_index()
+        #print("length of active features = ", len(self.active_features))
         #print("active features = ", self.active_features)
         #print("feature index {}".format(self.feature_index))
         self.num_attr = len(self.active_features)
         X = X.iloc[:, self.active_features]
+        #print(X)
         #print("first 2 : ", X.iloc [0:3, :])
         #print("X.shape = ", X.shape)
         #print("X = ", X)
@@ -167,7 +172,7 @@ class Solution:
         return None
 
     def __str__(self) -> str:
-        return "NAME : " + self.name +  " HAM LOSS :" + str(self.loss) + " NUM ATTR :" +  str(self.num_attr) +  " RANK :" + str(self.rank) + " IS PARETO : " + str(self.pareto_solution) + " CROWDING DISTANCE : " + str(self.crowding_distance)
+        return "NAME : " + self.name +  " HAM LOSS :" + str(self.loss) + " NUM ATTR :" +  str(self.num_attr) +  " RANK :" + str(self.rank) + " IS PARETO : " + str(self.pareto_solution) + " CROWDING DISTANCE : " + str(self.crowding_distance) + " ACTIVE ERROR : " + str(self.active_features)
 
 
 def set_crowding_distance(pop, sol):
@@ -177,21 +182,33 @@ def set_crowding_distance(pop, sol):
     #print("----sorting---")
     sorted_pop = sorted(pop, key = lambda x: x.num_attr)
     #print("After sorting")
-    for i in range(len(pop)):
-        print(pop[i])
+    #for i in range(len(pop)):
+        #print(pop[i])
     #print("looping to find the index")
     #step3 : get the index of neighbours 
     for i in range(len(sorted_pop)):
         if sorted_pop[i].name == sol.name:
             index = i
             break
-    print("index = ", index)
+    #print("index = ", index)
 
     if index == len(pop)-1:
-        b = math.sqrt(math.pow((sorted_pop[index-2].num_attr - sorted_pop[index-1].num_attr), 2))
+        b = math.sqrt(math.pow((sorted_pop[index].num_attr - sorted_pop[index-1].num_attr), 2))
         #print("doing sorted_pop[i+1].loss {} - sorted_pop[i-1].loss {}".format(sorted_pop[index+1].loss,sorted_pop[index-1].loss))
-        l = math.sqrt(math.pow((sorted_pop[index-2].loss - sorted_pop[index-1].loss), 2))
-        sol.crowding_distance = 2*(b + l)
+        l = math.sqrt(math.pow((sorted_pop[index].loss - sorted_pop[index-1].loss), 2))
+        sol.crowding_distance = round(2*(b+l),3)
+        if round(2*(b+l), 3) == 0:
+            print("1 crowding distance zero")
+        return None
+    
+    #case 1 : first solution
+    if index == 0:
+        b = math.sqrt(math.pow((sorted_pop[index].num_attr - sorted_pop[index+1].num_attr), 2))
+        l = math.sqrt(math.pow((sorted_pop[index].loss - sorted_pop[index+1].loss), 2))
+        sol.crowding_distance = round(2*(b+l), 3)
+
+        if round(2*(b+l), 3) == 0:
+            print("2 crowding distance zero")
         return None
         
 
@@ -214,8 +231,10 @@ def set_crowding_distance(pop, sol):
     #print("B = ", b)
     #print("L = ", l)
 
-    perimeter = 2*(b + l)
+    perimeter = round(2*(b + l), 3)
     #print("perimeter = ", perimeter)
+    if round(2*(b+l), 3) == 0:
+        print("crowding distance zero")
 
     sol.crowding_distance = perimeter
     
@@ -228,19 +247,33 @@ def read_data():
     """
     Function to read data from the path, do preprocessing and return X and Y
     """
+
+
+
+    """
     #print("inside read data")
-    final_path = os.path.join(data_path, 'scene.csv')
+    final_path = os.path.join(data_path, 'Iris.csv')
     print(final_path, type(final_path))
     data  = pd.read_csv(final_path)
     #print("read data")
-    Y = data[['Beach','Sunset','FallFoliage','Field','Mountain','Urban']]
-    X = data.drop(columns= Y)
+    Y = data[['Species']]
+    X = data.drop(columns = ['Species', 'Id'])
     
 
     scaled_features = sklearn.preprocessing.MinMaxScaler().fit_transform(X.values)
     X = pd.DataFrame(scaled_features, index= X.index, columns= X.columns)
     #uncomment to run with chi^2
-    X = univariate_feature_elimination(X,Y,15)
+    #X = univariate_feature_elimination(X,Y,15)
+    """
+
+    
+    final_path = os.path.join(data_path, 'breast-cancer.csv')
+    data  = pd.read_csv(final_path)
+    Y = data.iloc[:, -1:]
+    X = data.iloc[:, 1: -1]
+    #scaled_features = sklearn.preprocessing.MinMaxScaler().fit_transform(X.values)
+    #X = pd.DataFrame(scaled_features, index= X.index, columns= X.columns)
+
 
     return X,Y
 
@@ -349,30 +382,37 @@ def Rank(pop : list) -> None:
 
 
 def print_solution(pop):
+    #print("inside print soltuion")
+    #print("length of pop = ", len(pop))
     for i in range(len(pop)):
+        #print("i = ", i)
         print(pop[i])
+        #print(pop[i].loss)
+        #print(pop[i].rank)
 
 
 
 
 def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
-    print("INSIDE MULTIOBJECTIVE FUNCTION")
+    #print("X = ")
+    #print(X)
+    #print(Y)
+    #print("INSIDE MULTIOBJECTIVE FUNCTION")
     #Step1 : Initalize soltuions
-    print("INITIALIZING SOLUTIONS")
-    """
+    #print("INITIALIZING SOLUTIONS")
+    pop = []
     for i in range(0, NUM_SOLUTIONS):
         pop.append(Solution(str(i)))
-        print(pop[i])
-    print("-----After Initalization------")
-    print_solution(pop)
-    print("------------STEP 1 DONE ---------")
-    """
+        #print(pop[i])
+    #print("-----After Initalization------")
+    #print_solution(pop)
+    #print("------------STEP 1 DONE ---------")
     it = 0
-    pop = []
     while it< NUM_ITERATIONS:
         print("ITER  || ", it)
         #Step2 : Evaluate 
         #print("evaluating solutions")
+        """
         pop.append(Solution(str(0)))
         pop.append(Solution(str(1)))
         pop.append(Solution(str(2)))
@@ -393,149 +433,137 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
 
         pop[4].loss = 0.1743
         pop[4].num_attr = 4
+        """
         
-        print("-----After Initalization------")
-        print_solution(pop)
-        print("------------STEP 1 DONE ---------")
-        
-        print("EVALUATING")
+        #print("EVALUATING\n\n")
+        #print("length of pop = ", len(pop))
         for i in range(len(pop)):
-            pass
             #print("evaluations  {}".format(pop[i].name))
-            #pop[i].evaluate(X,Y)
+            pop[i].evaluate(X,Y)
             #print(pop[i])
         
-        print("-----After Evaluting---")
-        print_solution(pop)
-        print("----STEP2 DONE--------")
+        #print("-----After Evaluting---\n\n")
+        #print_solution(pop)
+        #print("----STEP2 DONE--------\n\n")
         
         
-        print("updating crwoding distance")
+        #print("updating crwoding distance\n\n")
         for i in range(len(pop)):
-            print("I  = ", i)
+            #print("I  = ", i)
             set_crowding_distance(pop, pop[i])
-            print("done")
+            #print("DONE")
         
-        print("------After Updating Crowding Distance -----")
-        print_solution(pop)
-        print("------STEP 3 DONE ----------")
+        #print("------After Updating Crowding Distance -----\n\n")
+        #print_solution(pop)
+        #print("------STEP 3 DONE ----------\n\n")
 
-        """
+
         #step3:  Rank all the solutions
 
-        """
 
-        print("Ranking solutions")
+
+        #print("Ranking solutions")
         flag = Rank(pop)
         print_solution(pop)
-        print("-----RANKING DONE-------")
-        print("-----STEP 4 DONE----------")
+        break
+        #print("-----RANKING DONE-------\n\n")
+        #print("-----STEP 4 DONE----------\n\n")
         
-        """
-        pop = [0]*3
-        print("length of pop = ", pop)
-        pop[0] = Solution(str(0))
-        pop[0].num_attr = 2
-        pop[0].loss = 14
-
-        pop[1] = Solution(str(1))
-        pop[1].num_attr = 4
-        pop[1].loss = 8
-
-        pop[2] = Solution(str(2))
-        pop[2].num_attr = 10
-        pop[2].loss = 4
-        """
         new_pop = []
         wh_it = 0
 
         #step4 : Loop till you get NUM_SOLUTIONS OF new soltuions
         while(len(new_pop)!= len(pop)):
                 #Step4a : Randomly select two solutions
-                print("Inside while loop with iter = ", wh_it) 
+                #print("Inside while loop with iter = ", wh_it) 
                 wh_it = wh_it + 1
-                s1 = pop[random.randint(0, len(pop)-1)]
-                s2 = pop[random.randint(0, len(pop)-1)]
-                print("RANDOM S1 : {} ".format(s1))
-                print("RANDOM S2 : {} ".format(s2))
+                r1 = random.randint(0, len(pop)-1)
+                r2 = random.randint(0, len(pop)-1)
+                while r1!=r2:
+                    r2 = random.randint(0, len(pop)-1)
+
+                s1 = pop[r1]
+                s2 = pop[r2]
+                #print("RANDOM S1 : {} ".format(s1))
+                #print("RANDOM S2 : {} ".format(s2))
                 
-                print("CHECKING IF RANKS ARE SAME")
+                #print("CHECKING IF RANKS ARE SAME")
                 #step4b : If both the solutions are of same rank 
                 if s1.rank == s2.rank:
-                        print("TRUE, SAME RANK")
-                        print("CHECKING IF s1 crowding dist = {} > s2 crowding dist = {}".format(s1.crowding_distance,s2.crowding_distance ))
+                        #print("TRUE, SAME RANK")
+                        #print("CHECKING IF s1 crowding dist = {} > s2 crowding dist = {}".format(s1.crowding_distance,s2.crowding_distance ))
                         #step4b.1 : let s2 be the source(lower cd distance), s1 be the target(higher cd distance), s be the new solution
                         if s1.crowding_distance > s2.crowding_distance:
-                            print("TRUE")
+                            #print("TRUE")
                             s = Solution("S" + str(it+1))
                             s.move(s2, s1)
                         else:
-                            print("FALSE")
+                            #print("FALSE")
                         #step4b.2 : else let S1 be source, s2 be target and s be the new solution
                             s = Solution("S" + str(wh_it+1))
                             s.move(s1, s2)
                 #step4c : else
                 else:  
-                        print("FALSE, DIFFERENT RANKS")
+                        #print("FALSE, DIFFERENT RANKS")
                         #step4c.1 : Intialize new solution = S
                         s = Solution("S" + str(wh_it+1))
 
                         #step4c.2 : Let the one with higher rank be s1 and the other be s2'
-                        print("CHECKING IF s1 rank = {} < s2 rank = {}".format(s1.rank,s2.rank))
+                        #print("CHECKING IF s1 rank = {} < s2 rank = {}".format(s1.rank,s2.rank))
                         if s1.rank < s2.rank:
-                            print("TRUE s1 < s2")
+                            #print("TRUE s1 < s2")
                             s.move(s2, s1)
                         else:
-                            print("False, s1 > s2")
+                            #print("False, s1 > s2")
                             s.move(s1,s2)
 
                 #step4c.4 :  Add S to the new_soltuions list
-                print("NEW SOLUTION  = {}".format(s))
-                print("Appedning it to new pop")
+                #print("NEW SOLUTION  = {}".format(s))
+                #print("Appedning it to new pop")
                 new_pop.append(s)
 
 
         #step5 : new list = Concatinate new and old solution
-        print("Concating new and old pop")
+        #print("DONE CREATING NEW SOLTUIONS\n\n")
+        #print_solution(new_pop)
+        #print("Concating new and old pop\n\n")
         concat_pop = pop + new_pop
-        print("Printing concat pop")
-        print_solution(concat_pop)
+        #print("Printing concat pop\n\n")
+        #print_solution(concat_pop)
 
         #step6 : Reset LOSS, RANK, PARETO of all solutions in the new list
-        print("Restting loss and pareto")
+        #print("Restting loss and pareto of concat pop \n\n")
         for i in range(len(concat_pop)):
             concat_pop[i].reset()
             #step7 : Evaluate loss for each of the new list
             concat_pop[i].evaluate(X,Y)
         
-        print("DONE, Printing concat pop")
-        print_solution(concat_pop)
+        #print("DONE, Printing concat pop\n\n")
+        #print_solution(concat_pop)
 
                 
-        print("RERANKING")
+        #print("RERANKING\n\n")
         #step8 : Rank all the soltuions in the new list
         Rank(concat_pop)
-        print("concat pop now = \n")
-        print_solution(concat_pop)
-        print("----DONE RERANKING----")
+        #print("concat pop after re ranking = \n\n")
+        #print_solution(concat_pop)
+        #print("----DONE RERANKING----\n\n")
         
-        print("REMOVING THE BOTTOM K = ", K)
+        #print("REMOVING THE BOTTOM K = ", K)
         #step9 : Remove the bottom K solutions
-        print("First sorting ")
+        #print("First sorting \n\n")
         sorted_pop =  sorted(concat_pop, key = lambda x: x.rank)
-        print("Done sorting")
-        print("printing sorted pop")
-        print(print_solution(sorted_pop))
-        print("slicing pop\n")
-        pop = sorted_pop[:5] 
-        print("DONE WITH REMOVING BOTTOM K")
-        print("AT THE END, FINAL POP ") 
-        print_solution(pop)
-
+        #print("Done sorting\n\n")
+        #print("printing sorted pop \n\n")
+        #print_solution(sorted_pop) 
+        #print("DONE WITH REMOVING BOTTOM K \n\n")
+        #print("AT THE END, FINAL POP \n\n") 
+        pop = sorted_pop[:K]
+        #print_solution(pop)
+     
         #step10: Repeat until convergence | NUM_OF_ITERATIONS
-        print("----END BREKAING----")
-        if it>2:
-            break
+        #print("----END BREKAING----")
+        print_solution(pop)
         it = it+1
     return pop
 
@@ -545,7 +573,6 @@ def single_run(experiment_id: int) -> dict[str, int]:
     """
     print("Running Experiment", experiment_id)
     X, Y = read_data()
-    X = X.iloc[:, 0:5]
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.4, random_state=42)
     print(X)
     print("INFO : \n")
