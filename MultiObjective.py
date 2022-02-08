@@ -17,12 +17,18 @@ import os
 import random
 import math
 from sklearn.model_selection import train_test_split
+import warnings
+import sys
+import matplotlib.pyplot as plt
+
+
+
 
 NUM_EXPERIMENTS = 1
-NUM_SOLUTIONS = 50
-NUM_ITERATIONS = 5
-DIMENSION = 9
-K = 10
+NUM_SOLUTIONS = 100
+NUM_ITERATIONS = 50
+DIMENSION = 294
+K = 100
 data_path = 'Data'
 cache = defaultdict()
 
@@ -31,6 +37,10 @@ cache = defaultdict()
 
 REPORT_PATH = "./Reports"
 NAME_OF_FILE = 'take2_batch4_report_medical.xlsx'
+
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
+    os.environ["PYTHONWARNINGS"] = "ignore"
 
 def univariate_feature_elimination(X,y, k):
     """
@@ -78,10 +88,12 @@ class Solution:
         self.pareto_solution = False
         self.clf = KNeighborsClassifier(n_neighbors=10)
         self.crowding_distance = 0
+        self.isextreme = False
     
     def reset(self):
         self.rank = -1
         self.pareto_solution = False
+        self.isextreme = False
 
     def random_generator_binary(self):
         num = random.uniform(0, 1)
@@ -99,17 +111,17 @@ class Solution:
 
     
     def get_hamming_loss(self, X,y, metric = False):
-        print("inside hamming loss")
+        #print("inside hamming loss")
         self.classifier_fit(X,y)
         y_pred = self.classifier_predict(X)
         loss = hamming_loss(y_pred, y)
         return loss
 
     def classifier_fit(self, X,y):
-        print("inside classifier fit")
+        #print("inside classifier fit")
         x = np.array(X)
         y = np.array(y)
-        self.clf.fit(x,y )
+        self.clf.fit(x,y)
 
 
     def classifier_predict(self,X):
@@ -155,11 +167,11 @@ class Solution:
     
 
 
-    def move(self, source, target) ->None:
+    def move(self, target) ->None:
         #step1 : loop through the dimensions to set position
         for i in range(len(self.pos)):
             #if ith position of both target and source is same then assign any
-            if source.pos[i] == target.pos[i]:
+            if self.pos[i] == target.pos[i]:
                 self.pos[i] = target.pos[i]
             #if prob > 0.5 set pos as target's pos else set pos as source's pos
             else:
@@ -167,8 +179,6 @@ class Solution:
                 #print("random = ", random)
                 if rand_num < 0.5:
                     self.pos[i] = target.pos[i]
-                else:
-                    self.pos[i] = source.pos[i]
         return None
 
     def __str__(self) -> str:
@@ -192,25 +202,9 @@ def set_crowding_distance(pop, sol):
             break
     #print("index = ", index)
 
-    if index == len(pop)-1:
-        b = math.sqrt(math.pow((sorted_pop[index].num_attr - sorted_pop[index-1].num_attr), 2))
-        #print("doing sorted_pop[i+1].loss {} - sorted_pop[i-1].loss {}".format(sorted_pop[index+1].loss,sorted_pop[index-1].loss))
-        l = math.sqrt(math.pow((sorted_pop[index].loss - sorted_pop[index-1].loss), 2))
-        sol.crowding_distance = round(2*(b+l),3)
-        if round(2*(b+l), 3) == 0:
-            print("1 crowding distance zero")
+    if index == len(pop)-1 or index == 0:
+        sol.crowdins_distance = 0
         return None
-    
-    #case 1 : first solution
-    if index == 0:
-        b = math.sqrt(math.pow((sorted_pop[index].num_attr - sorted_pop[index+1].num_attr), 2))
-        l = math.sqrt(math.pow((sorted_pop[index].loss - sorted_pop[index+1].loss), 2))
-        sol.crowding_distance = round(2*(b+l), 3)
-
-        if round(2*(b+l), 3) == 0:
-            print("2 crowding distance zero")
-        return None
-        
 
 
     #print("index = ", index)
@@ -233,8 +227,6 @@ def set_crowding_distance(pop, sol):
 
     perimeter = round(2*(b + l), 3)
     #print("perimeter = ", perimeter)
-    if round(2*(b+l), 3) == 0:
-        print("crowding distance zero")
 
     sol.crowding_distance = perimeter
     
@@ -266,15 +258,49 @@ def read_data():
     #X = univariate_feature_elimination(X,Y,15)
     """
 
-    
+    """
     final_path = os.path.join(data_path, 'breast-cancer.csv')
     data  = pd.read_csv(final_path)
     Y = data.iloc[:, -1:]
     X = data.iloc[:, 1: -1]
     #scaled_features = sklearn.preprocessing.MinMaxScaler().fit_transform(X.values)
     #X = pd.DataFrame(scaled_features, index= X.index, columns= X.columns)
+    """
+
+    """
+    final_path = os.path.join(data_path, 'breat-cancer-data.csv')
+    data  = pd.read_csv(final_path)
+    Y = data['diagnosis']
+    #print("Y before = ", Y)
+    from sklearn import preprocessing
+    le = preprocessing.LabelEncoder()
+    Y = le.fit_transform(Y)
+    #print("Y after", Y)
+    X = data.iloc[:, 2: 30]
+    """
+    
+    """
+    final_path = os.path.join(data_path, 'biodeg.csv')
+    data  = pd.read_csv(final_path)
+    Y = data.iloc[:, -1:]
+    #print("Y before = ", Y)
+    from sklearn import preprocessing
+    le = preprocessing.LabelEncoder()
+    Y = le.fit_transform(Y)
+    X = data.iloc[:, 1:-1]
+    """
+    final_path = os.path.join(data_path, 'scene.csv')
+    data = pd.read_csv(final_path)
+    Y = data[['Beach','Sunset','FallFoliage','Field','Mountain','Urban']]
+    X = data.drop(columns= Y)
 
 
+    scaled_features = sklearn.preprocessing.MinMaxScaler().fit_transform(X.values)
+    X = pd.DataFrame(scaled_features, index= X.index, columns= X.columns)
+    #uncomment to run with chi^2
+    #X = univariate_feature_elimination(X,Y,15)
+
+    
     return X,Y
 
 def Rank(pop : list) -> None:
@@ -323,6 +349,23 @@ def Rank(pop : list) -> None:
                             #print("True not assigned")
                             #print("Checking for dominace")
                             #print("sol.ham_loss = {} sol.num_attr = {} currsol.ham_loss ={} cursol.attr = {}".format(sol.loss, sol.num_attr, curr_sol.loss, curr_sol.num_attr))
+                            
+                            #if loss of both the solutuin is same, the one with higher features gets dominated
+                            if sol.loss == curr_sol.loss:
+                                if sol.num_attr > curr_sol.num_attr:
+                                    sol.pareto_solution = False
+                                if sol.num_attr < curr_sol.num_attr:
+                                    curr_sol.pareto_solution = False
+
+                            #if num_attr of both the solutions is same, the one with higher loss gets dominated
+                            if sol.num_attr == curr_sol.num_attr:
+                                if sol.loss > curr_sol.loss:
+                                    sol.pareto_solution = False
+                                if sol.loss < curr_sol.loss:
+                                    curr_sol.pareto_solution = False
+
+                            
+                            
                             if sol.loss < curr_sol.loss and sol.num_attr < curr_sol.num_attr:
                                 #step3.1.1: Then Pareto_solution = False
                                 #print("True, {} dominated by {}".format(curr_sol, sol))
@@ -402,7 +445,7 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
     #print("INITIALIZING SOLUTIONS")
     pop = []
     for i in range(0, NUM_SOLUTIONS):
-        pop.append(Solution(str(i)))
+        pop.append(Solution(str(i)))            
         #print(pop[i])
     #print("-----After Initalization------")
     #print_solution(pop)
@@ -440,7 +483,13 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
         for i in range(len(pop)):
             #print("evaluations  {}".format(pop[i].name))
             pop[i].evaluate(X,Y)
-            #print(pop[i])
+            if i ==0 or i == len(pop)-1:
+                pop[i].isextreme = True
+            #print("ATTR SIZE : ", pop[i].num_attr)
+            #print("ACTIVE FEAT : ", pop[i].active_features)
+
+
+
         
         #print("-----After Evaluting---\n\n")
         #print_solution(pop)
@@ -464,8 +513,8 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
 
         #print("Ranking solutions")
         flag = Rank(pop)
-        print_solution(pop)
-        break
+        #print_solution(pop)
+        #break
         #print("-----RANKING DONE-------\n\n")
         #print("-----STEP 4 DONE----------\n\n")
         
@@ -493,15 +542,33 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
                         #print("TRUE, SAME RANK")
                         #print("CHECKING IF s1 crowding dist = {} > s2 crowding dist = {}".format(s1.crowding_distance,s2.crowding_distance ))
                         #step4b.1 : let s2 be the source(lower cd distance), s1 be the target(higher cd distance), s be the new solution
-                        if s1.crowding_distance > s2.crowding_distance:
+                        if s1.isextreme == True and s2.isextreme == True:
+                            prob = random.uniform(0,1)
+                            if prob > 0.6:
+                                s = Solution("S" + str(it+1))
+                                s.move(s1)
+                            else:
+                                s = Solution("S" + str(it+1))
+                                s.move(s2)
+                        elif s1.isextreme == True or s2.isextreme == True:
+                            prob = random.random(0,1)
+                            if prob > 0.6:
+                                if s1.isextreme == True:
+                                    s = Solution("S" + str(it+1))
+                                    s.move(s1)
+                                else:
+                                    s = Solution("S" + str(it+1))
+                                    s.move(s2)
+
+                        elif s1.crowding_distance > s2.crowding_distance:
                             #print("TRUE")
                             s = Solution("S" + str(it+1))
-                            s.move(s2, s1)
+                            s.move(s1)
                         else:
                             #print("FALSE")
                         #step4b.2 : else let S1 be source, s2 be target and s be the new solution
                             s = Solution("S" + str(wh_it+1))
-                            s.move(s1, s2)
+                            s.move(s2)
                 #step4c : else
                 else:  
                         #print("FALSE, DIFFERENT RANKS")
@@ -512,10 +579,10 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
                         #print("CHECKING IF s1 rank = {} < s2 rank = {}".format(s1.rank,s2.rank))
                         if s1.rank < s2.rank:
                             #print("TRUE s1 < s2")
-                            s.move(s2, s1)
+                            s.move(s1)
                         else:
                             #print("False, s1 > s2")
-                            s.move(s1,s2)
+                            s.move(s2)
 
                 #step4c.4 :  Add S to the new_soltuions list
                 #print("NEW SOLUTION  = {}".format(s))
@@ -537,6 +604,7 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
             concat_pop[i].reset()
             #step7 : Evaluate loss for each of the new list
             concat_pop[i].evaluate(X,Y)
+                
         
         #print("DONE, Printing concat pop\n\n")
         #print_solution(concat_pop)
@@ -563,9 +631,73 @@ def MultiObjective_Optimization(X:pd.DataFrame, Y:pd.DataFrame) -> None :
      
         #step10: Repeat until convergence | NUM_OF_ITERATIONS
         #print("----END BREKAING----")
-        print_solution(pop)
+        #print_solution(pop)
         it = it+1
+
+
     return pop
+
+
+def plotting(pop, name = None):
+    
+    loss = []
+    attr = []
+    attr_loss_dict = defaultdict()
+
+    for i in range(len(pop)):
+        if ((pop[i].num_attr)) not in attr_loss_dict:
+            attr_loss_dict[(pop[i].num_attr)] = pop[i].loss
+
+        else:
+            if (pop[i].loss) < attr_loss_dict[(pop[i].num_attr)]:
+                attr_loss_dict[(pop[i].num_attr)] = pop[i].loss
+ 
+
+
+    for key in sorted(attr_loss_dict):
+        #print("Key = ", key)
+        #print("Value = ", attr_loss_dict[key])
+        attr.append(key)
+        loss.append(attr_loss_dict[key])
+
+
+    #print("atter = ", attr)
+    #print("loss = ", loss)
+
+    #print("length = ", len(attr))
+    #print("loss = ", len(loss))
+    plt.plot(attr, loss)
+    plt.show()
+    plt.savefig(name)
+
+    return None
+
+
+def evaluate_model(pop, X_train, Y_train, X_test, Y_test):
+    #print("Inside evaluate ")
+    test_pop = []
+    for i in range(len(pop)):
+        #print("I = ", i)
+        active_features = pop[i].active_features
+        #print("Active features = {} {}", active_features, len(active_features))
+        X_train_subset = X_train.iloc[:, active_features]
+        clf = KNeighborsClassifier(n_neighbors=10)
+        clf.fit(X_train_subset, Y_train)
+        train_y_pred = clf.predict(X_train_subset)
+        loss = hamming_loss(Y_train, train_y_pred)
+        #print("LOSS GOT : {} Actuall loss in pop : {}".format(loss, pop[i].loss))
+        X_test_subset  = X_test.iloc[:, active_features]
+        y_pred = clf.predict(X_test_subset)
+        loss = hamming_loss(Y_test, y_pred)
+        S = Solution(pop[i].name)
+        S.loss = loss
+        S.active_features = active_features
+        S.clf = clf
+        S.num_attr = len(active_features)
+        test_pop.append(S)
+    return test_pop
+    
+
 
 def single_run(experiment_id: int) -> dict[str, int]:
     """
@@ -574,7 +706,6 @@ def single_run(experiment_id: int) -> dict[str, int]:
     print("Running Experiment", experiment_id)
     X, Y = read_data()
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.4, random_state=42)
-    print(X)
     print("INFO : \n")
     print("X_train", X_train.shape)
     print("X_test", X_test.shape)
@@ -584,8 +715,52 @@ def single_run(experiment_id: int) -> dict[str, int]:
     
     pop = MultiObjective_Optimization(X_train, Y_train)
 
+    #print("ALL SOLTUONS AFTER RUN \n\n")
+    #print_solution(pop)
+    #print("-----------------------------------------")
+
+    rank_1_solutions = []
+    active_feat_dict = defaultdict()
+    for i in range(len(pop)):
+        if pop[i].rank == 1 and str((pop[i].active_features)) not in active_feat_dict:
+            active_feat_dict[str((pop[i].active_features))] = active_feat_dict
+            rank_1_solutions.append(pop[i])
+    print("total = ", len(rank_1_solutions))
+    
+    print("-------------PRINTING RANK1 TRAIN SOLUTIONS ----------")
+    #print_solution(rank_1_solutions)
+
+    print("PRINTING RANK 1 TEST SOLUTIONS")
+    test_pop = evaluate_model(rank_1_solutions, X_train, Y_train, X_test, Y_test)
+    print_solution(test_pop)
+    
+
+    print("Plotting train solutions")
+    plotting(rank_1_solutions, "Train.jpg")
+    print("Plotting solutions")
+    plotting(test_pop, "Test.jpg")
+    
+
+    """
     print("printing returned pop")
-    print_solution(pop)
+    #print_solution(pop)
+
+    print("Testing if loss is correct")
+    p1 = pop[4]
+    print(p1)
+    active_feat = p1.active_features
+    X_subset = X_train.iloc[:, active_feat]
+    print(X_subset)
+    print(Y_train)
+    c = KNeighborsClassifier(n_neighbors=10)
+    c.fit(X_subset,Y_train)
+    y_pred = c.predict(X_subset)
+    print("p1 loss = ", p1.loss)
+    print("got loss = ", hamming_loss(y_pred, Y_train))
+    """
+
+
+
 
     return None
 
